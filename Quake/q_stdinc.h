@@ -136,8 +136,8 @@ COMPILE_TIME_ASSERT(falsehood, (0 == false));
 COMPILE_TIME_ASSERT(truth, (1  == true));
 #else
 typedef enum {
-	false = 0,
-	true  = 1
+	false,
+	true,
 } qboolean;
 COMPILE_TIME_ASSERT(falsehood, ((1 != 1) == false));
 COMPILE_TIME_ASSERT(truth, ((1 == 1) == true));

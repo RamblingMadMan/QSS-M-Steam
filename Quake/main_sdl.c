@@ -37,6 +37,10 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include <sys/time.h>
 #endif
 
+#ifdef USE_STEAMWORKS
+#include "steamworks.h"
+#endif
+
 extern cvar_t sv_idlesleep; // woods #idlespeep
 extern cvar_t cl_pong; // woods #pong
 
@@ -93,6 +97,10 @@ int main(int argc, char *argv[])
 	COM_InitArgv(parms.argc, parms.argv);
 
 	isDedicated = (COM_CheckParm("-dedicated") != 0);
+
+#ifdef USE_STEAMWORKS
+	Steam_Init(480, 1);
+#endif
 
 	Sys_InitSDL ();
 

@@ -45,6 +45,10 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "SDL.h"
 #endif
 
+#ifdef USE_STEAMWORKS
+	#include "steamworks.h"
+#endif
+
 #include "zlib.h" // woods #unpak
 
 static char	*largv[MAX_NUM_ARGVS + 1];
@@ -3429,6 +3433,17 @@ COM_AddGameDirectory -- johnfitz -- modified based on topaz's tutorial, reworked
 
 static void COM_AddGameDirectory (const char *dir)
 {
+	if (!dir || !*dir){
+		return;
+	}
+
+	qboolean is_absolute_dir = false;
+
+	if (*dir == '/' || dir[1] == ':')
+	{
+		is_absolute_dir = true;
+	}
+
 	const char *base = com_basedir;
 	int i;
 	unsigned int path_id;
@@ -3461,7 +3476,14 @@ static void COM_AddGameDirectory (const char *dir)
 		standard_quake = false;
 	}
 
-	q_strlcpy (com_gamedir, va("%s/%s", base, dir), sizeof(com_gamedir));
+	if (is_absolute_dir)
+	{
+		q_strlcpy (com_gamedir, dir, sizeof(com_gamedir));
+	}
+	else
+	{
+		q_strlcpy (com_gamedir, va("%s/%s", base, dir), sizeof(com_gamedir));
+	}
 
 	// assign a path_id to this game directory
 	if (com_searchpaths && com_searchpaths->path_id)
@@ -3683,11 +3705,61 @@ static void COM_Game_f (void)
 				else if (*p == '-')
 					continue;
 				
-				if (!*p || !strcmp(p, ".") || strstr(p, "..") || strstr(p, "/") || strstr(p, "\\") || strstr(p, ":"))
-				{
-					Con_Printf ("gamedir should be a single directory name, not a path\n");
+			#ifdef USE_STEAMWORKS
+				if(!*p || !strcmp(p, ".") || strstr(p, "..")){
+					Con_Printf ("gamedir should be a single directory name or an absolute directory to workshop content.\n");
 					return;
 				}
+
+				char *workshop_dirs;
+				int num_workshop_dirs = Steam_GetWorkshopDirectories(&workshop_dirs);
+
+				if(!num_workshop_dirs)
+				{
+					Con_Printf("no workshop content for gamedir found.\n");
+					return;
+				}
+
+				char *pworkshop_dir = workshop_dirs;
+				qboolean workshop_dir_found = false;
+
+				for(int workshop_dir_idx = 0; workshop_dir_idx < num_workshop_dirs; workshop_dir_idx++)
+				{
+					char *end_of_path = strchr(pworkshop_dir, ';');
+					if(!end_of_path)
+					{
+						end_of_path = pworkshop_dir + Q_strlen(pworkshop_dir) + 1;
+					}
+
+					int path_len = (size_t)end_of_path - (size_t)pworkshop_dir;
+
+					if(Q_strncmp(p, pworkshop_dir, path_len) == 0)
+					{
+						workshop_dir_found = true;
+						break;
+					}
+					else if(!end_of_path)
+					{
+						break;
+					}
+
+					pworkshop_dir += path_len;
+				}
+
+				free(workshop_dirs);
+
+				if(!workshop_dir_found)
+				{
+					Con_Printf("no workshop content for gamedir found.\n");
+					return;
+				}
+			#else
+				if (!*p || !strcmp(p, ".") || strstr(p, "..") || strstr(p, "/") || strstr(p, "\\") || strstr(p, ":"))
+				{
+					Con_Printf ("gamedir should be a single directory name, not a path.\n");
+					return;
+				}
+			#endif
 
 				if (!q_strcasecmp(p, GAMENAME))
 					continue; //don't add id1, its not interesting enough.

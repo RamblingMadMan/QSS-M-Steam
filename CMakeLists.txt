@@ -1,4 +1,4 @@
-CMAKE_MINIMUM_REQUIRED(VERSION 3.0)
+CMAKE_MINIMUM_REQUIRED(VERSION 3.5)
 
 PROJECT(QSS)
 
@@ -36,7 +36,15 @@ ELSE()
 ENDIF()
 
 
-
+#curl
+FIND_PACKAGE(CURL)
+IF(CURL_FOUND)
+	SET(QS_LIBS ${QS_LIBS} ${CURL_LIBRARIES})
+	SET(QS_DEFS ${QS_DEFS};USE_CURL)
+	SET(QS_DIRS ${QS_DIRS} ${CURL_INCLUDE_DIRS})
+ELSE()
+	MESSAGE(FATAL_ERROR "curl not available.")
+ENDIF()
 
 ### audio drivers
 IF (1)
@@ -70,15 +78,23 @@ ELSE()
 	MESSAGE(WARNING "no opusfile support.")	
 ENDIF()
 
-PKG_SEARCH_MODULE(VORBISFILE vorbisfile)
-IF(VORBISFILE_FOUND)
-	SET(QS_LIBS ${QS_LIBS} ${VORBISFILE_LIBRARIES})
-	SET(QS_FILES ${QS_FILES} Quake/snd_vorbis.c)
-	SET(QS_DEFS ${QS_DEFS};USE_CODEC_VORBIS)
-	MESSAGE("Found libvorbisfile support.")	
+PKG_SEARCH_MODULE(VORBIS vorbis)
+IF(VORBIS_FOUND)
+	SET(QS_LIBS ${QS_LIBS} ${VORBIS_LIBRARIES})
+	MESSAGE("Found libvorbis support.")
+
+	PKG_SEARCH_MODULE(VORBISFILE vorbisfile)
+	IF(VORBISFILE_FOUND)
+		SET(QS_LIBS ${QS_LIBS} ${VORBISFILE_LIBRARIES})
+		SET(QS_FILES ${QS_FILES} Quake/snd_vorbis.c)
+		SET(QS_DEFS ${QS_DEFS};USE_CODEC_VORBIS)
+		MESSAGE("Found libvorbisfile support.")
+	ELSE()
+		# VORBIS_USE_TREMOR ?
+		MESSAGE(WARNING "no vorbisfile support.")
+	ENDIF()
 ELSE()
-	# VORBIS_USE_TREMOR ?
-	MESSAGE(WARNING "no vorbisfile support.")	
+	MESSAGE(WARNING "no vorbis support.")
 ENDIF()
 
 PKG_SEARCH_MODULE(MIKMOD libmikmod)
@@ -128,6 +144,27 @@ ENDIF()
 #	MESSAGE(WARNING "no umx support.")
 #ENDIF()
 
+# Steamworks SDK
+SET(STEAMWORKS_SDK_VERSION 162)
+SET(STEAMWORKS_SDK_DIR ${CMAKE_CURRENT_LIST_DIR}/steamworks_sdk_${STEAMWORKS_SDK_VERSION})
+
+IF(EXISTS ${STEAMWORKS_SDK_DIR})
+	SET(STEAMWORKS_INCLUDE_DIRS ${STEAMWORKS_SDK_DIR}/public)
+
+	IF(WIN32)
+		SET(STEAMWORKS_LIBRARY_DIRS ${STEAMWORKS_SDK_DIR}/redistributable_bin/win64)
+		SET(QS_LIBS ${QS_LIBS} steam_api64)
+	ELSE()
+		SET(STEAMWORKS_LIBRARY_DIRS ${STEAMWORKS_SDK_DIR}/redistributable_bin/linux64)
+		SET(QS_LIBS ${QS_LIBS} steam_api)
+	ENDIF()
+
+	SET(QS_DEFS ${QS_DEFS};USE_STEAMWORKS)
+
+	INCLUDE_DIRECTORIES(${STEAMWORKS_INCLUDE_DIRS})
+	LINK_DIRECTORIES(${STEAMWORKS_LIBRARY_DIRS})
+ENDIF()
+
 INCLUDE_DIRECTORIES(${QS_DIRS})
 ADD_EXECUTABLE(quakespasm
 	${QS_FILES}
@@ -170,6 +207,10 @@ ADD_EXECUTABLE(quakespasm
 	Quake/mathlib.c
 	Quake/mdfour.c
 	Quake/menu.c
+	Quake/location.c
+	Quake/iplog.c
+	Quake/json.c
+	Quake/steamworks.cpp
 	Quake/net_bsd.c
 	Quake/net_dgrm.c
 	Quake/net_loop.c
@@ -213,5 +254,11 @@ ADD_EXECUTABLE(quakespasm
 	Quake/world.c
 	Quake/zone.c
 )
-SET_TARGET_PROPERTIES(quakespasm PROPERTIES COMPILE_DEFINITIONS "${QS_DEFS}" )
+
+SET_TARGET_PROPERTIES(
+	quakespasm PROPERTIES
+	C_STANDARD 11
+	COMPILE_DEFINITIONS "${QS_DEFS}"
+)
+
 TARGET_LINK_LIBRARIES(quakespasm ${QS_LIBS})
